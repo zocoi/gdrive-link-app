@@ -5,4 +5,5 @@ export type AppProps = LinktreeLinkAppContext & {
   authToken?: string;
   folderId?: string;
   maxFiles?: number | string;
+  uploadedImages?: string[];
 };

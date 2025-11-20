@@ -2,8 +2,8 @@ import Sheet from "@/app/sheet";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@/app/globals.css";
-import { THEME_PRESETS } from "/Users/hung/Projects/gdrive-link-app/node_modules/@linktr.ee/linkapp/dev-server/shared/theme-presets";
-import { getThemeFromUrl, mergeThemeProps } from "/Users/hung/Projects/gdrive-link-app/node_modules/@linktr.ee/linkapp/dev-server/shared/theme-utils";
+import { THEME_PRESETS } from "@linktr.ee/linkapp/dev-server/shared/theme-presets";
+import { getThemeFromUrl, mergeThemeProps } from "@linktr.ee/linkapp/dev-server/shared/theme-utils";
 
 // Declare global window properties for theme and font application
 declare global {

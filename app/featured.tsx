@@ -1,11 +1,11 @@
-import { Uploader } from "@/components/uploader";
+import { Carousel } from "@/components/carousel";
 import "./globals.css";
 import type { AppProps } from "@/lib/types";
 
 export default function Featured(props: AppProps) {
   return (
     <div>
-      <Uploader {...props} />
+      <Carousel images={props.uploadedImages || []} />
     </div>
   );
 }

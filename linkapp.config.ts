@@ -99,6 +99,20 @@ const config = {
     authToken: "example-bearer-token",
     folderId: "1iPuycVFc4gtdgDnAESXEvqod4sN7R7xU",
     maxFiles: 5,
+    uploadedImages: [
+      "/sample-1.svg",
+      "/sample-2.svg",
+      "/sample-3.svg",
+      "/sample-4.svg",
+      "/sample-5.svg",
+      "/sample-6.svg",
+      "/sample-7.svg",
+      "/sample-8.svg",
+      "/sample-9.svg",
+      "/sample-10.svg",
+      "/sample-11.svg",
+      "/sample-12.svg",
+    ],
   },
 } satisfies LinkAppConfig;
 
