@@ -1,0 +1,14 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@source "../**/*.{js,jsx,ts,tsx}";
+
+@theme inline {
+  --color-linktree-button-bg: var(--button-style-background);
+  --color-linktree-button-bg-hover: var(--button-style-background-hover);
+  --color-linktree-button-text: var(--button-style-text);
+  --color-linktree-button-border: var(--button-style-border-color);
+  --color-linktree-button-contrast: var(--button-style-contrast-color);
+  --radius-linktree-button: var(--button-style-radius);
+  --radius-linktree-button-inner: var(--button-style-inner-radius);
+  --shadow-linktree-button: var(--button-style-shadow);
+}
