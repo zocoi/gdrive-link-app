@@ -44,26 +44,37 @@ const config = {
     overview: {
       title: "Drive uploader",
       description:
-        "Upload photos and videos to a Google Drive folder using your service-account powered endpoint.",
+        "Upload photos and videos to a Google Drive folder using your service-account powered token endpoint.",
     },
     supports_featured_layout: true,
     elements: [
       {
-        id: "uploadEndpointUrl",
+        id: "tokenEndpointUrl",
         inputType: SettingsElementInput.url,
-        title: "Upload endpoint URL",
+        title: "Token endpoint URL",
         description:
-          "HTTPS endpoint that accepts multipart/form-data with `file` and optional `folderId`; it should make uploads shareable.",
+          "HTTPS endpoint that returns a Google Drive access token for a service account (JSON with access_token).",
         validation: {
           required: true,
         },
       },
       {
-        id: "authToken",
+        id: "accessToken",
         inputType: SettingsElementInput.text,
-        title: "Bearer token (optional)",
+        title: "Access token (demo only)",
         description:
-          "If your endpoint expects an Authorization header, it will be sent as Bearer {token}.",
+          "Paste a short-lived Google Drive access token if you don't have a token endpoint. Token expires quickly.",
+        validation: {
+          required: false,
+          maxLength: 2000,
+        },
+      },
+      {
+        id: "tokenAuthToken",
+        inputType: SettingsElementInput.text,
+        title: "Token endpoint auth (optional)",
+        description:
+          "If your token endpoint expects an Authorization header, it will be sent as Bearer {token}.",
         validation: {
           required: false,
           maxLength: 200,
@@ -95,8 +106,9 @@ const config = {
   },
   url_match_rules: { hostnames: [], patterns: [] },
   preview_props: {
-    uploadEndpointUrl: "https://api.example.com/upload-to-drive",
-    authToken: "example-bearer-token",
+    tokenEndpointUrl: "http://localhost:3001/upload-to-drive",
+    tokenAuthToken: "example-bearer-token",
+    accessToken: "ya29.example-demo-token",
     folderId: "1iPuycVFc4gtdgDnAESXEvqod4sN7R7xU",
     maxFiles: 5,
     uploadedImages: [

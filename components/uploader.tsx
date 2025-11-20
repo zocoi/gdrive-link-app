@@ -32,14 +32,19 @@ const getShareUrlFromId = (fileId?: string) =>
   fileId ? `https://drive.google.com/file/d/${fileId}/view?usp=drivesdk` : undefined;
 
 export const Uploader: FC<AppProps> = ({
-  uploadEndpointUrl,
-  authToken,
+  tokenEndpointUrl,
+  tokenAuthToken,
+  accessToken,
   folderId,
   maxFiles,
 }) => {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [tokenCache, setTokenCache] = useState<{
+    token: string;
+    expiresAt: number | null;
+  } | null>(null);
 
   const safeMaxFiles = useMemo(() => {
     if (typeof maxFiles === "number" && maxFiles > 0) return maxFiles;
@@ -50,14 +55,97 @@ export const Uploader: FC<AppProps> = ({
     return FALLBACK_MAX_FILES;
   }, [maxFiles]);
 
-  const endpoint = uploadEndpointUrl?.trim();
+  const tokenEndpoint = tokenEndpointUrl?.trim();
+  const tokenAuth = tokenAuthToken?.trim();
+
+  const fetchAccessToken = async () => {
+    if (!tokenEndpoint) {
+      throw new Error("Add a token or token endpoint in settings to enable uploads.");
+    }
+    const headers: HeadersInit = { Accept: "application/json" };
+    if (tokenAuth) {
+      headers.Authorization = `Bearer ${tokenAuth}`;
+    }
+    const response = await fetch(tokenEndpoint, { method: "GET", headers });
+    if (!response.ok) {
+      throw new Error(`Token endpoint error (${response.status})`);
+    }
+    const payload = (await response.json()) as {
+      access_token?: string;
+      token?: string;
+      expires_in?: number;
+      expires_at?: number;
+    };
+    const token = payload.access_token || payload.token;
+    if (!token) {
+      throw new Error("Token endpoint did not return access_token.");
+    }
+    const expiresAt = payload.expires_at
+      ? payload.expires_at * 1000
+      : payload.expires_in
+        ? Date.now() + Math.max(Number(payload.expires_in) - 60, 0) * 1000
+        : null;
+    setTokenCache({ token, expiresAt });
+    return token;
+  };
+
+  const getAccessToken = async () => {
+    if (accessToken?.trim()) {
+      return accessToken.trim();
+    }
+    if (tokenCache?.token && (!tokenCache.expiresAt || tokenCache.expiresAt > Date.now())) {
+      return tokenCache.token;
+    }
+    return fetchAccessToken();
+  };
+
+  const ensureShareable = async (uploadId: string, fileId: string, token: string) => {
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            role: "reader",
+            type: "anyone",
+            allowFileDiscovery: false,
+          }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to set sharing (status ${response.status})`);
+      }
+      setUploads((current) =>
+        current.map((upload) =>
+          upload.id === uploadId
+            ? { ...upload, message: "Uploaded & shared publicly" }
+            : upload,
+        ),
+      );
+    } catch (err) {
+      setUploads((current) =>
+        current.map((upload) =>
+          upload.id === uploadId
+            ? {
+                ...upload,
+                message: "Uploaded, but failed to make public",
+              }
+            : upload,
+        ),
+      );
+    }
+  };
 
   const isAcceptedFile = (file: File) =>
     ACCEPTED_MIME_PREFIXES.some((prefix) => file.type.startsWith(prefix));
 
   const addUploads = (files: File[]) => {
-    if (!endpoint) {
-      setError("Add an upload endpoint in settings to start sending files.");
+    if (!tokenEndpoint && !accessToken?.trim()) {
+      setError("Add a token endpoint or paste an access token in settings to upload to Drive.");
       return;
     }
 
@@ -103,93 +191,26 @@ export const Uploader: FC<AppProps> = ({
   };
 
   const uploadSingle = (item: UploadItem) => {
-    if (!endpoint) {
-      setUploads((current) =>
-        current.map((existing) =>
-          existing.id === item.id
-            ? {
-                ...existing,
-                status: "error",
-                message: "No upload endpoint configured.",
-              }
-            : existing,
-        ),
-      );
-      return;
-    }
-
     setUploads((current) =>
       current.map((existing) =>
         existing.id === item.id ? { ...existing, status: "uploading", progress: 1 } : existing,
       ),
     );
 
-    const formData = new FormData();
-    formData.append("file", item.file);
-    if (folderId) {
-      formData.append("folderId", folderId);
-    }
-    formData.append("makePublic", "true");
-
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", endpoint as string, true);
-    if (authToken) {
-      xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
-    }
-
-    xhr.upload.onprogress = (event) => {
-      if (!event.lengthComputable) return;
-      const progress = Math.round((event.loaded / event.total) * 100);
-      setUploads((current) =>
-        current.map((existing) =>
-          existing.id === item.id ? { ...existing, progress } : existing,
-        ),
-      );
-    };
-
-    xhr.onerror = () => {
-      setUploads((current) =>
-        current.map((existing) =>
-          existing.id === item.id
-            ? {
-                ...existing,
-                status: "error",
-                message: "Network error while uploading.",
-              }
-            : existing,
-        ),
-      );
-    };
-
-    xhr.onload = () => {
-      const success = xhr.status >= 200 && xhr.status < 300;
-      if (success) {
-        let payload: unknown;
-        try {
-          payload = JSON.parse(xhr.responseText);
-        } catch (err) {
-          payload = null;
-        }
-
-        const data = payload as {
-          fileId?: string;
-          id?: string;
-          shareUrl?: string;
-          webViewLink?: string;
-        };
-
-        const fileId = data?.fileId || data?.id;
-        const shareUrl = data?.shareUrl || data?.webViewLink || getShareUrlFromId(fileId);
-
+    const doUpload = async () => {
+      let accessToken: string;
+      try {
+        accessToken = await getAccessToken();
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unable to fetch access token for Drive.";
         setUploads((current) =>
           current.map((existing) =>
             existing.id === item.id
               ? {
                   ...existing,
-                  status: "success",
-                  progress: 100,
-                  shareUrl,
-                  message: "Uploaded",
+                  status: "error",
+                  message,
                 }
               : existing,
           ),
@@ -197,17 +218,109 @@ export const Uploader: FC<AppProps> = ({
         return;
       }
 
-      const failureMessage = xhr.responseText || "Upload failed.";
-      setUploads((current) =>
-        current.map((existing) =>
-          existing.id === item.id
-            ? { ...existing, status: "error", message: failureMessage }
-            : existing,
-        ),
+      const metadata = {
+        name: item.file.name,
+        parents: folderId ? [folderId] : undefined,
+      };
+
+      const formData = new FormData();
+      formData.append(
+        "metadata",
+        new Blob([JSON.stringify(metadata)], { type: "application/json" }),
       );
+      formData.append("file", item.file);
+
+      const uploadUrl =
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink&supportsAllDrives=true";
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", uploadUrl, true);
+      xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        const progress = Math.round((event.loaded / event.total) * 100);
+        setUploads((current) =>
+          current.map((existing) =>
+            existing.id === item.id ? { ...existing, progress } : existing,
+          ),
+        );
+      };
+
+      xhr.onerror = () => {
+        setUploads((current) =>
+          current.map((existing) =>
+            existing.id === item.id
+              ? {
+                  ...existing,
+                  status: "error",
+                  message: "Network error while uploading.",
+                }
+              : existing,
+          ),
+        );
+      };
+
+      xhr.onload = () => {
+        const success = xhr.status >= 200 && xhr.status < 300;
+        if (success) {
+          let payload: unknown;
+          try {
+            payload = JSON.parse(xhr.responseText);
+          } catch (err) {
+            payload = null;
+          }
+
+          const data = payload as {
+            id?: string;
+            webViewLink?: string;
+          };
+
+          const fileId = data?.id;
+          const shareUrl = data?.webViewLink || getShareUrlFromId(fileId);
+
+          setUploads((current) =>
+            current.map((existing) =>
+              existing.id === item.id
+                ? {
+                    ...existing,
+                    status: "success",
+                    progress: 100,
+                    shareUrl,
+                    message: "Uploaded",
+                  }
+                : existing,
+            ),
+          );
+
+          if (fileId) {
+            void ensureShareable(item.id, fileId, accessToken);
+          }
+          return;
+        }
+
+        let failureMessage = "Upload failed.";
+        try {
+          const parsed = JSON.parse(xhr.responseText) as { error?: { message?: string } };
+          if (parsed?.error?.message) {
+            failureMessage = parsed.error.message;
+          }
+        } catch {
+          failureMessage = xhr.responseText || failureMessage;
+        }
+
+        setUploads((current) =>
+          current.map((existing) =>
+            existing.id === item.id
+              ? { ...existing, status: "error", message: failureMessage }
+              : existing,
+          ),
+        );
+      };
+
+      xhr.send(formData);
     };
 
-    xhr.send(formData);
+    void doUpload();
   };
 
   const handleFiles = (fileList: FileList | null) => {
@@ -266,11 +379,6 @@ export const Uploader: FC<AppProps> = ({
         <div className="mt-1 text-xs text-linktree-button-text/80">
           Up to {safeMaxFiles} files per drop (photos and videos only)
         </div>
-        {!endpoint ? (
-          <div className="mt-3 rounded-linktree bg-red-500/10 px-3 py-2 text-xs font-medium text-red-500">
-            Add your upload endpoint URL in settings to enable uploads.
-          </div>
-        ) : null}
       </label>
 
       <div className="mt-3 text-xs text-linktree-button-text/70">
