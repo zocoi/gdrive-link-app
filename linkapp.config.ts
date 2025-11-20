@@ -109,7 +109,7 @@ const config = {
     tokenEndpointUrl: "http://localhost:3001/upload-to-drive",
     tokenAuthToken: "example-bearer-token",
     accessToken: "ya29.example-demo-token",
-    folderId: "1iPuycVFc4gtdgDnAESXEvqod4sN7R7xU",
+    folderId: "1vwfuUfhL6K78llVP4YbSEcVkSsXU8-M7",
     maxFiles: 5,
     uploadedImages: [
       "/sample-1.svg",
