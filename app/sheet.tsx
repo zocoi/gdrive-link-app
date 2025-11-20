@@ -5,11 +5,9 @@ import type { AppProps } from "@/lib/types";
 
 export default function Classic(props: AppProps) {
   return (
-    <div className="p-4">
-      <Carousel images={props.uploadedImages || []} />
-      <div className="mt-4">
-        <Uploader {...props} />
-      </div>
+    <div className="space-y-4 p-4">
+      <Uploader {...props} />
+      <Carousel {...props} />
     </div>
   );
 }

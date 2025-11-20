@@ -4,8 +4,8 @@ import type { AppProps } from "@/lib/types";
 
 export default function Featured(props: AppProps) {
   return (
-    <div>
-      <Carousel images={props.uploadedImages || []} />
+    <div className="p-3">
+      <Carousel {...props} />
     </div>
   );
 }
