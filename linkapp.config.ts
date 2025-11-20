@@ -81,6 +81,16 @@ const config = {
         },
       },
       {
+        id: "googleClientId",
+        inputType: SettingsElementInput.text,
+        title: "Google OAuth Client ID",
+        description: "Used for browser Google Identity Services to request a Drive access token.",
+        validation: {
+          required: false,
+          maxLength: 200,
+        },
+      },
+      {
         id: "folderId",
         inputType: SettingsElementInput.text,
         title: "Google Drive folder ID",
@@ -108,7 +118,8 @@ const config = {
   preview_props: {
     tokenEndpointUrl: "http://localhost:3001/upload-to-drive",
     tokenAuthToken: "example-bearer-token",
-    accessToken: "ya29.example-demo-token",
+    accessToken: "",
+    googleClientId: "1005062320352-ogsglai8r17ec5rq89jc3klh3ran2ecq.apps.googleusercontent.com",
     folderId: "1vwfuUfhL6K78llVP4YbSEcVkSsXU8-M7",
     maxFiles: 5,
     uploadedImages: [

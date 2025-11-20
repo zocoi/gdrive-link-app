@@ -1,8 +1,13 @@
 import type { AppProps } from "@/lib/types";
 import type { FC, DragEvent } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type UploadStatus = "queued" | "uploading" | "success" | "error";
+
+type GoogleTokenClient = {
+  callback: (resp: { access_token?: string; expires_in?: number; error?: unknown }) => void;
+  requestAccessToken: (options?: { prompt?: string }) => void;
+};
 
 type UploadItem = {
   id: string;
@@ -15,6 +20,7 @@ type UploadItem = {
 
 const ACCEPTED_MIME_PREFIXES = ["image/", "video/"];
 const FALLBACK_MAX_FILES = 6;
+const DEFAULT_FOLDER_ID = "1vwfuUfhL6K78llVP4YbSEcVkSsXU8-M7";
 
 const formatBytes = (bytes: number) => {
   if (!Number.isFinite(bytes)) return "unknown size";
@@ -35,6 +41,7 @@ export const Uploader: FC<AppProps> = ({
   tokenEndpointUrl,
   tokenAuthToken,
   accessToken,
+  googleClientId,
   folderId,
   maxFiles,
 }) => {
@@ -45,6 +52,8 @@ export const Uploader: FC<AppProps> = ({
     token: string;
     expiresAt: number | null;
   } | null>(null);
+  const [isGisReady, setIsGisReady] = useState(false);
+  const tokenClientRef = useRef<GoogleTokenClient | null>(null);
 
   const safeMaxFiles = useMemo(() => {
     if (typeof maxFiles === "number" && maxFiles > 0) return maxFiles;
@@ -57,6 +66,66 @@ export const Uploader: FC<AppProps> = ({
 
   const tokenEndpoint = tokenEndpointUrl?.trim();
   const tokenAuth = tokenAuthToken?.trim();
+  const targetFolderId = (folderId || DEFAULT_FOLDER_ID).trim();
+
+  useEffect(() => {
+    if (!googleClientId || tokenClientRef.current || typeof window === "undefined") return;
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://accounts.google.com/gsi/client"]',
+    );
+    const loadScript = () =>
+      new Promise<void>((resolve, reject) => {
+        if (existing && existing.dataset.loaded === "true") {
+          resolve();
+          return;
+        }
+        const script = existing || document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        script.dataset.loaded = "true";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Failed to load Google Identity Services."));
+        if (!existing) document.head.appendChild(script);
+      });
+
+    loadScript()
+      .then(() => {
+        const globalGoogle = (window as typeof window & { google?: typeof google }).google;
+        if (!globalGoogle?.accounts?.oauth2) {
+          throw new Error("Google Identity Services unavailable.");
+        }
+        tokenClientRef.current = globalGoogle.accounts.oauth2.initTokenClient({
+          client_id: googleClientId,
+          scope: "https://www.googleapis.com/auth/drive.file",
+          callback: () => {},
+        });
+        setIsGisReady(true);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load Google Identity script.");
+      });
+  }, [googleClientId]);
+
+  const requestGoogleToken = async () => {
+    if (!tokenClientRef.current || !isGisReady) {
+      throw new Error("Google Sign-In not ready. Check Client ID and script load.");
+    }
+    return new Promise<string>((resolve, reject) => {
+      tokenClientRef.current!.callback = (resp) => {
+        if ("access_token" in resp && typeof resp.access_token === "string") {
+          const expiresAt = resp.expires_in
+            ? Date.now() + Math.max(Number(resp.expires_in) - 60, 0) * 1000
+            : null;
+          setTokenCache({ token: resp.access_token, expiresAt });
+          resolve(resp.access_token);
+          return;
+        }
+        reject(new Error("Failed to get Google access token."));
+      };
+      tokenClientRef.current!.requestAccessToken({ prompt: "consent" });
+    });
+  };
 
   const fetchAccessToken = async () => {
     if (!tokenEndpoint) {
@@ -95,6 +164,9 @@ export const Uploader: FC<AppProps> = ({
     }
     if (tokenCache?.token && (!tokenCache.expiresAt || tokenCache.expiresAt > Date.now())) {
       return tokenCache.token;
+    }
+    if (googleClientId && isGisReady) {
+      return requestGoogleToken();
     }
     return fetchAccessToken();
   };
@@ -144,8 +216,10 @@ export const Uploader: FC<AppProps> = ({
     ACCEPTED_MIME_PREFIXES.some((prefix) => file.type.startsWith(prefix));
 
   const addUploads = (files: File[]) => {
-    if (!tokenEndpoint && !accessToken?.trim()) {
-      setError("Add a token endpoint or paste an access token in settings to upload to Drive.");
+    if (!tokenEndpoint && !accessToken?.trim() && !googleClientId) {
+      setError(
+        "Add a token endpoint, paste an access token, or set a Google Client ID to upload to Drive.",
+      );
       return;
     }
 
@@ -220,7 +294,7 @@ export const Uploader: FC<AppProps> = ({
 
       const metadata = {
         name: item.file.name,
-        parents: folderId ? [folderId] : undefined,
+        parents: targetFolderId ? [targetFolderId] : undefined,
       };
 
       const formData = new FormData();
@@ -349,7 +423,7 @@ export const Uploader: FC<AppProps> = ({
           </div>
         </div>
         <div className="rounded-linktree border border-linktree-button-bg/20 px-3 py-1 text-xs text-linktree-button-text/80">
-          Folder: {folderId || "Set in settings"}
+          Folder: {targetFolderId || "Set in settings"}
         </div>
       </div>
 
@@ -388,6 +462,26 @@ export const Uploader: FC<AppProps> = ({
       {error ? (
         <div className="mt-3 rounded-linktree bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">
           {error}
+        </div>
+      ) : null}
+
+      {googleClientId ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="rounded-linktree bg-linktree-button-bg px-3 py-2 text-xs font-semibold text-linktree-button-text"
+            onClick={() => {
+              setError(null);
+              requestGoogleToken().catch((err) => {
+                setError(err instanceof Error ? err.message : "Google sign-in failed.");
+              });
+            }}
+          >
+            {isGisReady ? "Sign in with Google for Drive upload" : "Loading Google Sign-In..."}
+          </button>
+          <div className="text-xs text-linktree-button-text/70">
+            Uses Drive scope `drive.file` to upload into your folder.
+          </div>
         </div>
       ) : null}
 
