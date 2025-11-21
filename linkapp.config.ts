@@ -13,11 +13,11 @@ import {
  */
 const config = {
   manifest: {
-    name: "Drive Upload Dropzone",
-    tagline: "Collect photos and videos straight into Google Drive",
+    name: "Cloud Upload Dropzone",
+    tagline: "Collect photos and videos straight into your storage",
     description: [
-      "Let visitors drop photos and videos that upload to your Google Drive via a service-account endpoint.",
-      "Ideal for gathering event media, client submissions, or team assets without exposing your Drive.",
+      "Let visitors drop photos and videos that upload to your bucket via a service-account endpoint.",
+      "Ideal for gathering event media, client submissions, or team assets without exposing your storage.",
     ],
     manifest_version: "0.0.1",
     version: "1.0.0",
@@ -27,10 +27,10 @@ const config = {
       website: "https://linktr.ee",
     },
     category: "share",
-    search_terms: ["google drive", "upload", "photos", "videos", "storage", "cloud"],
+    search_terms: ["cloud", "upload", "photos", "videos", "storage", "bucket"],
     author: {
-      name: "Drive Upload App",
-      accounts: ["drive_upload_app"],
+      name: "Cloud Upload App",
+      accounts: ["cloud_upload_app"],
       contact: {
         url: "https://linktr.ee",
         email: "hello@linktr.ee",
@@ -38,13 +38,13 @@ const config = {
     },
   },
   settings: {
-    title: "Drive uploader",
+    title: "Cloud uploader",
     uses_url: false,
     has_url: false,
     overview: {
-      title: "Drive uploader",
+      title: "Cloud uploader",
       description:
-        "Upload photos and videos to a Google Drive folder using your service-account powered token endpoint.",
+        "Upload photos and videos to your storage bucket using your service-account powered endpoint.",
     },
     supports_featured_layout: true,
     elements: [
@@ -53,20 +53,19 @@ const config = {
         inputType: SettingsElementInput.url,
         title: "Token endpoint URL",
         description:
-          "HTTPS endpoint that returns a Google Drive access token for a service account (JSON with access_token).",
+          "HTTPS endpoint that returns an access token for uploads (service account-backed). Not required if your upload endpoint accepts public requests.",
         validation: {
-          required: true,
+          required: false,
         },
       },
       {
-        id: "accessToken",
-        inputType: SettingsElementInput.text,
-        title: "Access token (demo only)",
+        id: "listEndpointUrl",
+        inputType: SettingsElementInput.url,
+        title: "List endpoint URL",
         description:
-          "Paste a short-lived Google Drive access token if you don't have a token endpoint. Token expires quickly.",
+          "Public endpoint that returns images from storage. Expected shape: { files: [{ id, name, webViewLink, thumbnailLink }] }.",
         validation: {
           required: false,
-          maxLength: 2000,
         },
       },
       {
@@ -74,17 +73,7 @@ const config = {
         inputType: SettingsElementInput.text,
         title: "Token endpoint auth (optional)",
         description:
-          "If your token endpoint expects an Authorization header, it will be sent as Bearer {token}.",
-        validation: {
-          required: false,
-          maxLength: 200,
-        },
-      },
-      {
-        id: "googleClientId",
-        inputType: SettingsElementInput.text,
-        title: "Google OAuth Client ID",
-        description: "Used for browser Google Identity Services to request a Drive access token.",
+          "If your upload endpoint expects an Authorization header, it will be sent as Bearer {token}.",
         validation: {
           required: false,
           maxLength: 200,
@@ -93,11 +82,10 @@ const config = {
       {
         id: "folderId",
         inputType: SettingsElementInput.text,
-        title: "Google Drive folder ID",
-        description: "Uploads will target this folder ID.",
+        title: "Bucket prefix",
+        description: "Uploads will use this prefix inside your bucket (optional).",
         validation: {
-          required: true,
-          minLength: 6,
+          required: false,
           maxLength: 200,
         },
       },
@@ -117,10 +105,9 @@ const config = {
   url_match_rules: { hostnames: [], patterns: [] },
   preview_props: {
     tokenEndpointUrl: "http://localhost:3001/upload-to-drive",
+    listEndpointUrl: "http://localhost:3001/list-drive-images",
     tokenAuthToken: "example-bearer-token",
-    accessToken: "",
-    googleClientId: "1005062320352-ogsglai8r17ec5rq89jc3klh3ran2ecq.apps.googleusercontent.com",
-    folderId: "1vwfuUfhL6K78llVP4YbSEcVkSsXU8-M7",
+    folderId: "",
     maxFiles: 5,
     uploadedImages: [
       "/sample-1.svg",
