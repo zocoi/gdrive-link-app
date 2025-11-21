@@ -6,6 +6,7 @@ dist/
 /.pnp
 .pnp.js
 credentials.json
+package.tgz
 
 # testing
 /coverage

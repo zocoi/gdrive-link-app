@@ -4,6 +4,7 @@ import multer from 'multer'
 import path from 'node:path'
 import { google } from 'googleapis'
 import { GoogleAuth } from 'google-auth-library'
+import cors from 'cors'
 
 // Configure basic auth guard (optional)
 const sharedToken = process.env.UPLOAD_SHARED_TOKEN
@@ -30,6 +31,7 @@ const bucketName = '2025-link-app'
 const upload = multer({ storage: multer.memoryStorage() })
 const app = express()
 
+app.use(cors())
 app.use(express.json())
 
 // Allow cross-origin requests (for local dev / LinkApp iframe)
@@ -37,6 +39,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*')
   res.header('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  res.header('Vary', 'Origin')
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204)
   }
