@@ -8,4 +8,5 @@ export type AppProps = LinktreeLinkAppContext & {
   folderId?: string
   maxFiles?: number | string
   uploadedImages?: string[]
+  statsList?: { name: string; value: string }[]
 }

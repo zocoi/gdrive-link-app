@@ -11,7 +11,7 @@ import { SettingsElementInput, type LinkAppConfig } from '@linktr.ee/linkapp/typ
 const config = {
   manifest: {
     name: 'Cloud Upload Dropzone',
-    tagline: 'Collect photos and videos straight into your storage',
+    tagline: 'Collect photos and videos in one place',
     description: [
       'Let visitors drop photos and videos that upload to your bucket via a service-account endpoint.',
       'Ideal for gathering event media, client submissions, or team assets without exposing your storage.',

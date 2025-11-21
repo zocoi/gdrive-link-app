@@ -37,7 +37,13 @@ export const Carousel: FC<AppProps & { listEndpointUrl?: string; refreshKey?: nu
         throw new Error('Add a list endpoint URL in settings.')
       }
       const response = await fetch(
-        `${listEndpointUrl}${listEndpointUrl.includes('?') ? '&' : '?'}prefix=${encodeURIComponent(targetPrefix)}`
+        `${listEndpointUrl}${listEndpointUrl.includes('?') ? '&' : '?'}prefix=${encodeURIComponent(targetPrefix)}`,
+        {
+          headers: {
+            // Request a CORS-allowed response; actual allowance is enforced by the server
+            'Access-Control-Allow-Origin': '*',
+          },
+        }
       )
       if (!response.ok) {
         throw new Error(`List endpoint failed (${response.status})`)
@@ -52,15 +58,22 @@ export const Carousel: FC<AppProps & { listEndpointUrl?: string; refreshKey?: nu
       }
       const mapped =
         payload.files
-          ?.filter((file): file is Required<Pick<typeof file, 'id'>> & typeof file => Boolean(file?.id))
+          ?.filter((file): file is Required<Pick<typeof file, 'id' | 'name'>> & typeof file => Boolean(file?.id))
           .map((file) => ({
             id: file.id!,
-            name: file.name,
+            name: file.name || file.id,
             link: file.webViewLink || file.thumbnailLink,
             url: file.webViewLink || file.thumbnailLink || '',
             fallback: file.thumbnailLink || file.webViewLink,
           })) ?? []
-      setImages(mapped)
+      const unique = Array.from(
+        mapped.reduce((acc, item) => {
+          const key = (item.name || item.id || '').toLowerCase()
+          if (!acc.has(key)) acc.set(key, item)
+          return acc
+        }, new Map<string, DriveImage>())
+      ).map(([, value]) => value)
+      setImages(unique)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load images.')
       setImages([])
