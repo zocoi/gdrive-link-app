@@ -122,6 +122,7 @@ export const Uploader: FC<UploaderProps> = ({
 
     const xhr = new XMLHttpRequest()
     xhr.open('POST', uploadUrl, true)
+    xhr.setRequestHeader('Access-Control-Allow-Origin', '*')
     if (tokenAuthToken?.trim()) {
       xhr.setRequestHeader('Authorization', `Bearer ${tokenAuthToken.trim()}`)
     }

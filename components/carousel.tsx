@@ -37,13 +37,7 @@ export const Carousel: FC<AppProps & { listEndpointUrl?: string; refreshKey?: nu
         throw new Error('Add a list endpoint URL in settings.')
       }
       const response = await fetch(
-        `${listEndpointUrl}${listEndpointUrl.includes('?') ? '&' : '?'}prefix=${encodeURIComponent(targetPrefix)}`,
-        {
-          headers: {
-            // Request a CORS-allowed response; actual allowance is enforced by the server
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
+        `${listEndpointUrl}${listEndpointUrl.includes('?') ? '&' : '?'}prefix=${encodeURIComponent(targetPrefix)}`
       )
       if (!response.ok) {
         throw new Error(`List endpoint failed (${response.status})`)
@@ -54,6 +48,8 @@ export const Carousel: FC<AppProps & { listEndpointUrl?: string; refreshKey?: nu
           name?: string
           webViewLink?: string
           thumbnailLink?: string
+          updated?: string
+          timeCreated?: string
         }>
       }
       const mapped =
@@ -65,9 +61,15 @@ export const Carousel: FC<AppProps & { listEndpointUrl?: string; refreshKey?: nu
             link: file.webViewLink || file.thumbnailLink,
             url: file.webViewLink || file.thumbnailLink || '',
             fallback: file.thumbnailLink || file.webViewLink,
+            sortTs: file.updated || file.timeCreated || '',
           })) ?? []
+      const sorted = [...mapped].sort((a, b) => {
+        const aTs = a.sortTs ? Date.parse(a.sortTs) : 0
+        const bTs = b.sortTs ? Date.parse(b.sortTs) : 0
+        return bTs - aTs
+      })
       const unique = Array.from(
-        mapped.reduce((acc, item) => {
+        sorted.reduce((acc, item) => {
           const key = (item.name || item.id || '').toLowerCase()
           if (!acc.has(key)) acc.set(key, item)
           return acc
