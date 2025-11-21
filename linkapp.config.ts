@@ -99,8 +99,8 @@ const config = {
   },
   url_match_rules: { hostnames: [], patterns: [] },
   preview_props: {
-    tokenEndpointUrl: 'http://localhost:3001/upload-to-drive',
-    listEndpointUrl: 'http://localhost:3001/list-drive-images',
+    tokenEndpointUrl: 'https://adalberto-fragrant-unstatically.ngrok-free.dev/upload-to-drive',
+    listEndpointUrl: 'https://adalberto-fragrant-unstatically.ngrok-free.dev/list-drive-images',
     tokenAuthToken: 'example-bearer-token',
     folderId: '',
     maxFiles: 5,

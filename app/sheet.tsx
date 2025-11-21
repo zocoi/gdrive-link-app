@@ -11,10 +11,10 @@ export default function Classic(props: AppProps) {
   return (
     <div className="space-y-4 p-4">
       <Hero {...props} />
-      <Carousel {...props} listEndpointUrl="http://localhost:3001/list-drive-images" refreshKey={refreshKey} />
+      <Carousel {...props} listEndpointUrl="https://adalberto-fragrant-unstatically.ngrok-free.dev/list-drive-images" refreshKey={refreshKey} />
       <Uploader
         {...props}
-        tokenEndpointUrl="http://localhost:3001/upload-to-drive"
+        tokenEndpointUrl="https://adalberto-fragrant-unstatically.ngrok-free.dev/upload-to-drive"
         onUploadComplete={() => setRefreshKey((key) => key + 1)}
       />
     </div>
