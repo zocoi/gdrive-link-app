@@ -228,18 +228,8 @@ export const Uploader: FC<UploaderProps> = ({
 
   return (
     <div className="rounded-linktree bg-white px-4 py-5 shadow-sm ring-1 ring-linktree-button-bg/15">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="text-sm font-semibold uppercase tracking-wide text-linktree-button-text/70">
-            Add to the album
-          </div>
-          <div className="text-lg font-bold text-linktree-button-text">
-            Upload photos and videos
-          </div>
-        </div>
-        <div className="rounded-linktree border border-linktree-button-bg/20 px-3 py-1 text-xs text-linktree-button-text/80">
-          Prefix: {targetPrefix || "root"}
-        </div>
+      <div className="text-sm font-semibold uppercase tracking-wide text-linktree-button-text/70">
+        Add to the album
       </div>
 
       <label

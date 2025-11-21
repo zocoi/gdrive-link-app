@@ -25,6 +25,7 @@ export const Carousel: FC<AppProps & { listEndpointUrl?: string; refreshKey?: nu
   const [images, setImages] = useState<DriveImage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modalImage, setModalImage] = useState<DriveImage | null>(null);
 
   const targetPrefix = useMemo(
     () => (folderId && folderId.trim() ? folderId.trim() : DEFAULT_PREFIX),
@@ -114,6 +115,15 @@ export const Carousel: FC<AppProps & { listEndpointUrl?: string; refreshKey?: nu
               <div
                 key={image.id}
                 className="relative h-28 w-28 flex-shrink-0 snap-center overflow-hidden rounded-[16px] bg-linktree-button-bg/10 shadow-sm"
+                onClick={() => setModalImage(image)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setModalImage(image);
+                  }
+                }}
               >
                 <img
                   src={image.url}
@@ -136,20 +146,36 @@ export const Carousel: FC<AppProps & { listEndpointUrl?: string; refreshKey?: nu
                 <div className="absolute bottom-0 left-0 right-0 bg-black/40 px-2 py-1 text-[11px] font-semibold text-white line-clamp-1">
                   {image.name || "Image"}
                 </div>
-                {image.link ? (
-                  <a
-                    href={image.link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="absolute inset-0"
-                    aria-label="Open image"
-                  />
-                ) : null}
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {modalImage ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          onClick={() => setModalImage(null)}
+        >
+          <div
+            className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-[18px] bg-black"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <img
+              src={modalImage.url}
+              alt={modalImage.name || "Gallery image"}
+              className="max-h-[90vh] max-w-[90vw] object-contain"
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-3 rounded-full bg-white/80 px-3 py-1 text-sm font-semibold text-black"
+              onClick={() => setModalImage(null)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
