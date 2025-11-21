@@ -1,13 +1,9 @@
 import type { AppProps } from "@/lib/types";
+import { useDriveAuth } from "@/components/use-drive-auth";
 import type { FC, DragEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type UploadStatus = "queued" | "uploading" | "success" | "error";
-
-type GoogleTokenClient = {
-  callback: (resp: { access_token?: string; expires_in?: number; error?: unknown }) => void;
-  requestAccessToken: (options?: { prompt?: string }) => void;
-};
 
 type UploadItem = {
   id: string;
@@ -48,12 +44,6 @@ export const Uploader: FC<AppProps> = ({
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [tokenCache, setTokenCache] = useState<{
-    token: string;
-    expiresAt: number | null;
-  } | null>(null);
-  const [isGisReady, setIsGisReady] = useState(false);
-  const tokenClientRef = useRef<GoogleTokenClient | null>(null);
 
   const safeMaxFiles = useMemo(() => {
     if (typeof maxFiles === "number" && maxFiles > 0) return maxFiles;
@@ -64,112 +54,25 @@ export const Uploader: FC<AppProps> = ({
     return FALLBACK_MAX_FILES;
   }, [maxFiles]);
 
-  const tokenEndpoint = tokenEndpointUrl?.trim();
-  const tokenAuth = tokenAuthToken?.trim();
   const targetFolderId = (folderId || DEFAULT_FOLDER_ID).trim();
+  const {
+    getAccessToken,
+    isGisReady,
+    requestGoogleToken,
+    authError,
+  } = useDriveAuth({
+    accessToken,
+    tokenEndpointUrl: tokenEndpointUrl?.trim(),
+    tokenAuthToken: tokenAuthToken?.trim(),
+    googleClientId,
+    scope: "https://www.googleapis.com/auth/drive.file",
+  });
 
   useEffect(() => {
-    if (!googleClientId || tokenClientRef.current || typeof window === "undefined") return;
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[src="https://accounts.google.com/gsi/client"]',
-    );
-    const loadScript = () =>
-      new Promise<void>((resolve, reject) => {
-        if (existing && existing.dataset.loaded === "true") {
-          resolve();
-          return;
-        }
-        const script = existing || document.createElement("script");
-        script.src = "https://accounts.google.com/gsi/client";
-        script.async = true;
-        script.defer = true;
-        script.dataset.loaded = "true";
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error("Failed to load Google Identity Services."));
-        if (!existing) document.head.appendChild(script);
-      });
-
-    loadScript()
-      .then(() => {
-        const globalGoogle = (window as typeof window & { google?: typeof google }).google;
-        if (!globalGoogle?.accounts?.oauth2) {
-          throw new Error("Google Identity Services unavailable.");
-        }
-        tokenClientRef.current = globalGoogle.accounts.oauth2.initTokenClient({
-          client_id: googleClientId,
-          scope: "https://www.googleapis.com/auth/drive.file",
-          callback: () => {},
-        });
-        setIsGisReady(true);
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Failed to load Google Identity script.");
-      });
-  }, [googleClientId]);
-
-  const requestGoogleToken = async () => {
-    if (!tokenClientRef.current || !isGisReady) {
-      throw new Error("Google Sign-In not ready. Check Client ID and script load.");
+    if (authError) {
+      setError(authError);
     }
-    return new Promise<string>((resolve, reject) => {
-      tokenClientRef.current!.callback = (resp) => {
-        if ("access_token" in resp && typeof resp.access_token === "string") {
-          const expiresAt = resp.expires_in
-            ? Date.now() + Math.max(Number(resp.expires_in) - 60, 0) * 1000
-            : null;
-          setTokenCache({ token: resp.access_token, expiresAt });
-          resolve(resp.access_token);
-          return;
-        }
-        reject(new Error("Failed to get Google access token."));
-      };
-      tokenClientRef.current!.requestAccessToken({ prompt: "consent" });
-    });
-  };
-
-  const fetchAccessToken = async () => {
-    if (!tokenEndpoint) {
-      throw new Error("Add a token or token endpoint in settings to enable uploads.");
-    }
-    const headers: HeadersInit = { Accept: "application/json" };
-    if (tokenAuth) {
-      headers.Authorization = `Bearer ${tokenAuth}`;
-    }
-    const response = await fetch(tokenEndpoint, { method: "GET", headers });
-    if (!response.ok) {
-      throw new Error(`Token endpoint error (${response.status})`);
-    }
-    const payload = (await response.json()) as {
-      access_token?: string;
-      token?: string;
-      expires_in?: number;
-      expires_at?: number;
-    };
-    const token = payload.access_token || payload.token;
-    if (!token) {
-      throw new Error("Token endpoint did not return access_token.");
-    }
-    const expiresAt = payload.expires_at
-      ? payload.expires_at * 1000
-      : payload.expires_in
-        ? Date.now() + Math.max(Number(payload.expires_in) - 60, 0) * 1000
-        : null;
-    setTokenCache({ token, expiresAt });
-    return token;
-  };
-
-  const getAccessToken = async () => {
-    if (accessToken?.trim()) {
-      return accessToken.trim();
-    }
-    if (tokenCache?.token && (!tokenCache.expiresAt || tokenCache.expiresAt > Date.now())) {
-      return tokenCache.token;
-    }
-    if (googleClientId && isGisReady) {
-      return requestGoogleToken();
-    }
-    return fetchAccessToken();
-  };
+  }, [authError]);
 
   const ensureShareable = async (uploadId: string, fileId: string, token: string) => {
     try {
@@ -216,7 +119,7 @@ export const Uploader: FC<AppProps> = ({
     ACCEPTED_MIME_PREFIXES.some((prefix) => file.type.startsWith(prefix));
 
   const addUploads = (files: File[]) => {
-    if (!tokenEndpoint && !accessToken?.trim() && !googleClientId) {
+    if (!tokenEndpointUrl?.trim() && !accessToken?.trim() && !googleClientId) {
       setError(
         "Add a token endpoint, paste an access token, or set a Google Client ID to upload to Drive.",
       );

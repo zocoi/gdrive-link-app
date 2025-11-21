@@ -1,11 +1,7 @@
+import { useDriveAuth } from "@/components/use-drive-auth";
 import type { AppProps } from "@/lib/types";
 import type { FC } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
-
-type GoogleTokenClient = {
-  callback: (resp: { access_token?: string; expires_in?: number; error?: unknown }) => void;
-  requestAccessToken: (options?: { prompt?: string }) => void;
-};
+import { useEffect, useMemo, useState } from "react";
 
 type DriveImage = {
   id: string;
@@ -24,137 +20,75 @@ const PLACEHOLDER_IMG =
 
 const buildPublicImageUrl = (id: string) => `https://drive.google.com/uc?export=view&id=${id}`;
 
-export const Carousel: FC<AppProps> = ({
+export const Carousel: FC<AppProps & { listEndpointUrl?: string }> = ({
   accessToken,
   tokenEndpointUrl,
   tokenAuthToken,
   googleClientId,
   folderId,
+  listEndpointUrl,
 }) => {
   const [images, setImages] = useState<DriveImage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tokenCache, setTokenCache] = useState<{
-    token: string;
-    expiresAt: number | null;
-  } | null>(null);
-  const [isGisReady, setIsGisReady] = useState(false);
-  const tokenClientRef = useRef<GoogleTokenClient | null>(null);
 
   const targetFolderId = useMemo(
     () => (folderId && folderId.trim() ? folderId.trim() : DEFAULT_FOLDER_ID),
     [folderId],
   );
-  const tokenEndpoint = tokenEndpointUrl?.trim();
-  const tokenAuth = tokenAuthToken?.trim();
+
+  const {
+    getAccessToken,
+    isGisReady,
+    requestGoogleToken,
+    authError,
+  } = useDriveAuth({
+    accessToken,
+    tokenEndpointUrl: tokenEndpointUrl?.trim(),
+    tokenAuthToken: tokenAuthToken?.trim(),
+    googleClientId,
+    scope: "https://www.googleapis.com/auth/drive.readonly",
+  });
 
   useEffect(() => {
-    if (!googleClientId || tokenClientRef.current || typeof window === "undefined") return;
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[src="https://accounts.google.com/gsi/client"]',
-    );
-    const loadScript = () =>
-      new Promise<void>((resolve, reject) => {
-        if (existing && existing.dataset.loaded === "true") {
-          resolve();
-          return;
-        }
-        const script = existing || document.createElement("script");
-        script.src = "https://accounts.google.com/gsi/client";
-        script.async = true;
-        script.defer = true;
-        script.dataset.loaded = "true";
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error("Failed to load Google Identity Services."));
-        if (!existing) document.head.appendChild(script);
-      });
-
-    loadScript()
-      .then(() => {
-        const globalGoogle = (window as typeof window & { google?: typeof google }).google;
-        if (!globalGoogle?.accounts?.oauth2) {
-          throw new Error("Google Identity Services unavailable.");
-        }
-        tokenClientRef.current = globalGoogle.accounts.oauth2.initTokenClient({
-          client_id: googleClientId,
-          scope: "https://www.googleapis.com/auth/drive.readonly",
-          callback: () => {},
-        });
-        setIsGisReady(true);
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Failed to load Google Identity script.");
-      });
-  }, [googleClientId]);
-
-  const requestGoogleToken = async () => {
-    if (!tokenClientRef.current || !isGisReady) {
-      throw new Error("Google Sign-In not ready. Check Client ID and script load.");
+    if (authError) {
+      setError(authError);
     }
-    return new Promise<string>((resolve, reject) => {
-      tokenClientRef.current!.callback = (resp) => {
-        if ("access_token" in resp && typeof resp.access_token === "string") {
-          const expiresAt = resp.expires_in
-            ? Date.now() + Math.max(Number(resp.expires_in) - 60, 0) * 1000
-            : null;
-          setTokenCache({ token: resp.access_token, expiresAt });
-          resolve(resp.access_token);
-          return;
-        }
-        reject(new Error("Failed to get Google access token."));
-      };
-      tokenClientRef.current!.requestAccessToken({ prompt: "consent" });
-    });
-  };
-
-  const fetchAccessToken = async () => {
-    if (!tokenEndpoint) {
-      throw new Error("Add a token or token endpoint in settings to pull images from Drive.");
-    }
-    const headers: HeadersInit = { Accept: "application/json" };
-    if (tokenAuth) {
-      headers.Authorization = `Bearer ${tokenAuth}`;
-    }
-    const response = await fetch(tokenEndpoint, { method: "GET", headers });
-    if (!response.ok) {
-      throw new Error(`Token endpoint error (${response.status})`);
-    }
-    const payload = (await response.json()) as {
-      access_token?: string;
-      token?: string;
-      expires_in?: number;
-      expires_at?: number;
-    };
-    const token = payload.access_token || payload.token;
-    if (!token) {
-      throw new Error("Token endpoint did not return access_token.");
-    }
-    const expiresAt = payload.expires_at
-      ? payload.expires_at * 1000
-      : payload.expires_in
-        ? Date.now() + Math.max(Number(payload.expires_in) - 60, 0) * 1000
-        : null;
-    setTokenCache({ token, expiresAt });
-    return token;
-  };
-
-  const getAccessToken = async () => {
-    if (accessToken?.trim()) {
-      return accessToken.trim();
-    }
-    if (tokenCache?.token && (!tokenCache.expiresAt || tokenCache.expiresAt > Date.now())) {
-      return tokenCache.token;
-    }
-    if (googleClientId && isGisReady) {
-      return requestGoogleToken();
-    }
-    return fetchAccessToken();
-  };
+  }, [authError]);
 
   const fetchImages = async () => {
     setLoading(true);
     setError(null);
     try {
+      if (listEndpointUrl?.trim()) {
+        const response = await fetch(
+          `${listEndpointUrl}${listEndpointUrl.includes("?") ? "&" : "?"}folderId=${encodeURIComponent(targetFolderId)}`,
+        );
+        if (!response.ok) {
+          throw new Error(`List endpoint failed (${response.status})`);
+        }
+        const payload = (await response.json()) as {
+          files?: Array<{
+            id?: string;
+            name?: string;
+            webViewLink?: string;
+            thumbnailLink?: string;
+          }>;
+        };
+        const mapped =
+          payload.files
+            ?.filter((file): file is Required<Pick<typeof file, "id">> & typeof file => Boolean(file?.id))
+            .map((file) => ({
+              id: file.id!,
+              name: file.name,
+              link: file.webViewLink,
+              url: buildPublicImageUrl(file.id!),
+              fallback: file.thumbnailLink,
+            })) ?? [];
+        setImages(mapped);
+        return;
+      }
+
       const token = await getAccessToken();
       const params = new URLSearchParams({
         q: `'${targetFolderId}' in parents and mimeType contains 'image/' and trashed = false`,
@@ -200,11 +134,15 @@ export const Carousel: FC<AppProps> = ({
 
   useEffect(() => {
     if (!targetFolderId) return;
-    // Attempt auto-fetch if we already have a token cached or pasted
-    if (accessToken?.trim() || tokenCache?.token) {
+    if (listEndpointUrl?.trim()) {
       void fetchImages();
+      return;
     }
-  }, [targetFolderId, accessToken, tokenCache]);
+    if (accessToken?.trim()) {
+      void fetchImages();
+      return;
+    }
+  }, [targetFolderId, accessToken, listEndpointUrl]);
 
   return (
     <div className="rounded-linktree bg-linktree-primary px-4 py-5 shadow-sm">
@@ -233,7 +171,7 @@ export const Carousel: FC<AppProps> = ({
         </div>
       ) : null}
 
-      {googleClientId ? (
+      {!listEndpointUrl && googleClientId ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
