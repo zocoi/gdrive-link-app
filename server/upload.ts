@@ -110,6 +110,8 @@ app.get('/list-drive-images', async (req, res) => {
           name,
           webViewLink: publicUrl,
           thumbnailLink: publicUrl,
+          updated: file.updated,
+          timeCreated: file.timeCreated,
         }
       }) ?? []
 
