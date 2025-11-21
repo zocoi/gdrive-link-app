@@ -123,6 +123,7 @@ export const Uploader: FC<UploaderProps> = ({
     const xhr = new XMLHttpRequest()
     xhr.open('POST', uploadUrl, true)
     xhr.setRequestHeader('Access-Control-Allow-Origin', '*')
+    xhr.setRequestHeader('ngrok-skip-browser-warning', '1')
     if (tokenAuthToken?.trim()) {
       xhr.setRequestHeader('Authorization', `Bearer ${tokenAuthToken.trim()}`)
     }

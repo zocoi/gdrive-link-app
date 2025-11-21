@@ -37,7 +37,12 @@ export const Carousel: FC<AppProps & { listEndpointUrl?: string; refreshKey?: nu
         throw new Error('Add a list endpoint URL in settings.')
       }
       const response = await fetch(
-        `${listEndpointUrl}${listEndpointUrl.includes('?') ? '&' : '?'}prefix=${encodeURIComponent(targetPrefix)}`
+        `${listEndpointUrl}${listEndpointUrl.includes('?') ? '&' : '?'}prefix=${encodeURIComponent(targetPrefix)}`,
+        {
+          headers: {
+            'ngrok-skip-browser-warning': '1',
+          },
+        }
       )
       if (!response.ok) {
         throw new Error(`List endpoint failed (${response.status})`)
